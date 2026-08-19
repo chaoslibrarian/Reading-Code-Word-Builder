@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reading Code Word Builder</title>
+<style>
+  :root {
+    --bg: #fef6e4;
+    --card: #ffffff;
+    --ink: #3d3d3d;
+    --accent: #2a9d8f;
+    --accent2: #8bd3dd;
+    --good: #6bcB77;
+    --bad: #f25c54;
+    --slot-empty: #eee;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    font-family: 'Comic Sans MS', 'Trebuchet MS', 'Segoe UI', sans-serif;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  .app {
+    width: 100%;
+    max-width: 520px;
+    padding: 24px 16px 40px;
+    text-align: center;
+  }
+  h1 {
+    font-size: 1.8rem;
+    margin: 0 0 4px;
+    color: var(--accent);
+  }
+  .sub {
+    font-size: 0.95rem;
+    opacity: 0.7;
+    margin-bottom: 18px;
+  }
+  .scorebar {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    font-size: 1rem;
+    margin-bottom: 18px;
+  }
+  .scorebar span b { color: var(--accent2); }
+
+  .card {
+    background: var(--card);
+    border-radius: 24px;
+    padding: 28px 20px;
+    box-shadow: 0 8px 0 rgba(0,0,0,0.06);
+  }
+
+  .emoji {
+    font-size: 5rem;
+    line-height: 1;
+    margin-bottom: 6px;
+    transition: transform 0.15s ease;
+  }
+  .emoji.bump { transform: scale(1.15) rotate(-4deg); }
+
+  .hear-btn {
+    border: none;
+    background: var(--accent2);
+    color: white;
+    font-size: 0.95rem;
+    padding: 8px 16px;
+    border-radius: 999px;
+    cursor: pointer;
+    margin-bottom: 22px;
+  }
+  .hear-btn:active { transform: scale(0.96); }
+
+  .slots {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 26px;
+  }
+  .slot {
+    width: 60px;
+    height: 70px;
+    border-radius: 14px;
+    background: var(--slot-empty);
+    border: 3px dashed #ccc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .slot.filled {
+    background: var(--accent2);
+    border: 3px solid var(--accent2);
+    color: white;
+  }
+  .slots.shake { animation: shake 0.4s; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-8px); }
+    40% { transform: translateX(8px); }
+    60% { transform: translateX(-6px); }
+    80% { transform: translateX(6px); }
+  }
+  .slots.correct .slot {
+    background: var(--good);
+    border-color: var(--good);
+  }
+
+  .bank {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    min-height: 74px;
+  }
+  .tile {
+    width: 58px;
+    height: 64px;
+    border-radius: 14px;
+    background: var(--accent);
+    color: white;
+    font-size: 1.8rem;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.12);
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .tile:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,0.12); }
+  .tile.used { opacity: 0; pointer-events: none; }
+
+  .footer {
+    margin-top: 22px;
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+  }
+  .btn {
+    border: none;
+    padding: 10px 20px;
+    border-radius: 999px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    background: #eee;
+    color: var(--ink);
+  }
+  .btn.primary {
+    background: var(--accent);
+    color: white;
+    display: none;
+  }
+  .btn.primary.show { display: inline-block; }
+
+  .difficulty {
+    margin-top: 16px;
+    font-size: 0.85rem;
+    opacity: 0.75;
+  }
+  .difficulty select {
+    font-family: inherit;
+    font-size: 0.85rem;
+    padding: 4px 8px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+  }
+
+  .message {
+    min-height: 26px;
+    font-size: 1.05rem;
+    font-weight: bold;
+    margin-top: 10px;
+  }
+  .message.good { color: var(--good); }
+  .message.bad { color: var(--bad); }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>Reading Code Word Builder</h1>
+  <div class="sub">Tap the letters to spell the word</div>
+
+  <div class="scorebar">
+    <span>Score: <b id="score">0</b></span>
+    <span>Streak: <b id="streak">0</b></span>
+  </div>
+
+  <div class="card">
+    <div class="emoji" id="emoji">🐱</div>
+    <button class="hear-btn" id="hearBtn">🔊 Hear the word</button>
+
+    <div class="slots" id="slots"></div>
+    <div class="bank" id="bank"></div>
+
+    <div class="message" id="message">&nbsp;</div>
+
+    <div class="footer">
+      <button class="btn" id="resetBtn">Clear</button>
+      <button class="btn primary" id="nextBtn">Next word →</button>
+    </div>
+  </div>
+
+  <div class="difficulty">
+    Word family:
+    <select id="family"></select>
+    &nbsp;&nbsp;Difficulty:
+    <select id="difficulty">
+      <option value="easy">Easy (letters only)</option>
+      <option value="hard">Hard (extra letter)</option>
+    </select>
+    <br>
+    <label style="display:inline-flex; align-items:center; gap:6px; margin-top:10px; cursor:pointer;">
+      <input type="checkbox" id="blendOnly">
+      Blends only (bl, cr, st, spr&hellip;)
+    </label>
+    &nbsp;&nbsp;
+    <label style="display:inline-flex; align-items:center; gap:6px; margin-top:10px; cursor:pointer;">
+      <input type="checkbox" id="noBlend">
+      No blends
+    </label>
+    <br>
+    <label style="display:inline-flex; align-items:center; gap:6px; margin-top:10px; cursor:pointer;">
+      <input type="checkbox" id="digraphOnly">
+      Digraphs only (ch, sh, th, wh)
+    </label>
+    &nbsp;&nbsp;
+    <label style="display:inline-flex; align-items:center; gap:6px; margin-top:10px; cursor:pointer;">
+      <input type="checkbox" id="noDigraph">
+      No digraphs
+    </label>
+  </div>
+</div>
+
+<script>
+const WORDS = [
+  { word: "cat", emoji: "🐱", family: "at" },
+  { word: "hat", emoji: "🎩", family: "at" },
+  { word: "bat", emoji: "🦇", family: "at" },
+  { word: "rat", emoji: "🐀", family: "at" },
+
+  { word: "van", emoji: "🚐", family: "an" },
+  { word: "pan", emoji: "🍳", family: "an" },
+  { word: "can", emoji: "🥫", family: "an" },
+  { word: "man", emoji: "👨", family: "an" },
+
+  { word: "sun", emoji: "☀️", family: "un" },
+  { word: "run", emoji: "🏃", family: "un" },
+  { word: "bun", emoji: "🥯", family: "un" },
+  { word: "fun", emoji: "🎉", family: "un" },
+
+  { word: "bug", emoji: "🐛", family: "ug" },
+  { word: "mug", emoji: "☕", family: "ug" },
+  { word: "hug", emoji: "🤗", family: "ug" },
+  { word: "jug", emoji: "🏺", family: "ug" },
+  { word: "plug", emoji: "🔌", family: "ug" },
+
+  { word: "dog", emoji: "🐶", family: "og" },
+  { word: "log", emoji: "🪵", family: "og" },
+  { word: "frog", emoji: "🐸", family: "og" },
+  { word: "fog", emoji: "🌫️", family: "og" },
+  { word: "hedgehog", emoji: "🦔", family: "og" },
+
+  { word: "hen", emoji: "🐔", family: "en" },
+  { word: "pen", emoji: "🖊️", family: "en" },
+  { word: "ten", emoji: "🔟", family: "en" },
+  { word: "men", emoji: "👬", family: "en" },
+  { word: "chicken", emoji: "🐓", family: "en" },
+
+  { word: "box", emoji: "📦", family: "ox" },
+  { word: "fox", emoji: "🦊", family: "ox" },
+  { word: "ox", emoji: "🐂", family: "ox" },
+  { word: "mailbox", emoji: "📫", family: "ox" },
+
+  { word: "sock", emoji: "🧦", family: "ock" },
+  { word: "rock", emoji: "🪨", family: "ock" },
+  { word: "clock", emoji: "🕐", family: "ock" },
+  { word: "lock", emoji: "🔒", family: "ock" },
+  { word: "peacock", emoji: "🦚", family: "ock" },
+
+  { word: "fish", emoji: "🐟", family: "ish" },
+  { word: "dish", emoji: "🍽️", family: "ish" },
+  { word: "wish", emoji: "🌠", family: "ish" },
+
+  { word: "star", emoji: "⭐", family: "ar" },
+  { word: "car", emoji: "🚗", family: "ar" },
+  { word: "jar", emoji: "🫙", family: "ar" },
+  { word: "guitar", emoji: "🎸", family: "ar" },
+  { word: "radar", emoji: "📡", family: "ar" },
+
+  { word: "moon", emoji: "🌙", family: "oon" },
+  { word: "spoon", emoji: "🥄", family: "oon" },
+  { word: "balloon", emoji: "🎈", family: "oon" },
+  { word: "raccoon", emoji: "🦝", family: "oon" },
+  { word: "typhoon", emoji: "🌀", family: "oon" },
+
+  { word: "duck", emoji: "🦆", family: "uck" },
+  { word: "truck", emoji: "🚚", family: "uck" },
+  { word: "luck", emoji: "🍀", family: "uck" },
+  { word: "puck", emoji: "🏒", family: "uck" },
+
+  { word: "rain", emoji: "🌧️", family: "ain" },
+  { word: "train", emoji: "🚂", family: "ain" },
+  { word: "chain", emoji: "⛓️", family: "ain" },
+  { word: "brain", emoji: "🧠", family: "ain" },
+
+  { word: "cake", emoji: "🎂", family: "ake" },
+  { word: "snake", emoji: "🐍", family: "ake" },
+  { word: "lake", emoji: "🏞️", family: "ake" },
+  { word: "steak", emoji: "🥩", family: "ake" },
+  { word: "handshake", emoji: "🤝", family: "ake" },
+
+  { word: "game", emoji: "🎮", family: "ame" },
+  { word: "flame", emoji: "🔥", family: "ame" },
+  { word: "frame", emoji: "🖼️", family: "ame" },
+  { word: "name", emoji: "🏷️", family: "ame" },
+  { word: "blame", emoji: "👉", family: "ame" },
+
+  { word: "cap", emoji: "🧢", family: "ap" },
+  { word: "map", emoji: "🗺️", family: "ap" },
+  { word: "nap", emoji: "😴", family: "ap" },
+  { word: "trap", emoji: "🪤", family: "ap" },
+  { word: "clap", emoji: "👏", family: "ap" },
+
+  { word: "trash", emoji: "🗑️", family: "ash" },
+  { word: "splash", emoji: "💦", family: "ash" },
+  { word: "crash", emoji: "💥", family: "ash" },
+  { word: "flash", emoji: "⚡", family: "ash" },
+  { word: "dash", emoji: "💨", family: "ash" },
+
+  { word: "paw", emoji: "🐾", family: "aw" },
+  { word: "saw", emoji: "🪚", family: "aw" },
+  { word: "straw", emoji: "🥤", family: "aw" },
+  { word: "jigsaw", emoji: "🧩", family: "aw" },
+
+  { word: "seat", emoji: "💺", family: "eat" },
+  { word: "meat", emoji: "🍖", family: "eat" },
+  { word: "wheat", emoji: "🌾", family: "eat" },
+  { word: "treat", emoji: "🍬", family: "eat" },
+  { word: "beat", emoji: "🥁", family: "eat" },
+
+  { word: "bell", emoji: "🔔", family: "ell" },
+  { word: "shell", emoji: "🐚", family: "ell" },
+  { word: "smell", emoji: "👃", family: "ell" },
+  { word: "spell", emoji: "🔤", family: "ell" },
+  { word: "well", emoji: "⛲", family: "ell" },
+
+  { word: "nest", emoji: "🪺", family: "est" },
+  { word: "vest", emoji: "🦺", family: "est" },
+  { word: "best", emoji: "🏆", family: "est" },
+  { word: "west", emoji: "🧭", family: "est" },
+  { word: "test", emoji: "📝", family: "est" },
+
+  { word: "rice", emoji: "🍚", family: "ice" },
+  { word: "mice", emoji: "🐭", family: "ice" },
+  { word: "ice", emoji: "🧊", family: "ice" },
+  { word: "dice", emoji: "🎲", family: "ice" },
+  { word: "slice", emoji: "🍕", family: "ice" },
+
+  { word: "sick", emoji: "🤒", family: "ick" },
+  { word: "chick", emoji: "🐤", family: "ick" },
+  { word: "kick", emoji: "🦵", family: "ick" },
+  { word: "lick", emoji: "👅", family: "ick" },
+  { word: "pick", emoji: "⛏️", family: "ick" },
+
+  { word: "ride", emoji: "🚴", family: "ide" },
+  { word: "hide", emoji: "🙈", family: "ide" },
+  { word: "slide", emoji: "🛝", family: "ide" },
+  { word: "bride", emoji: "👰", family: "ide" },
+  { word: "wide", emoji: "↔️", family: "ide" },
+
+  { word: "light", emoji: "💡", family: "ight" },
+  { word: "night", emoji: "🌃", family: "ight" },
+  { word: "fight", emoji: "🥊", family: "ight" },
+  { word: "sight", emoji: "👁️", family: "ight" },
+
+  { word: "hill", emoji: "⛰️", family: "ill" },
+  { word: "pill", emoji: "💊", family: "ill" },
+  { word: "bill", emoji: "💵", family: "ill" },
+  { word: "spill", emoji: "💧", family: "ill" },
+  { word: "chill", emoji: "❄️", family: "ill" },
+
+  { word: "nine", emoji: "9️⃣", family: "ine" },
+  { word: "pine", emoji: "🌲", family: "ine" },
+  { word: "vine", emoji: "🍇", family: "ine" },
+  { word: "shine", emoji: "✨", family: "ine" },
+  { word: "spine", emoji: "🦴", family: "ine" },
+
+  { word: "ring", emoji: "💍", family: "ing" },
+  { word: "king", emoji: "👑", family: "ing" },
+  { word: "wing", emoji: "🪽", family: "ing" },
+  { word: "sing", emoji: "🎤", family: "ing" },
+  { word: "spring", emoji: "🌱", family: "ing" },
+
+  { word: "think", emoji: "🤔", family: "ink" },
+  { word: "wink", emoji: "😉", family: "ink" },
+  { word: "pink", emoji: "💗", family: "ink" },
+  { word: "sink", emoji: "🚰", family: "ink" },
+  { word: "drink", emoji: "🧃", family: "ink" },
+
+  { word: "ship", emoji: "🚢", family: "ip" },
+  { word: "lip", emoji: "👄", family: "ip" },
+  { word: "clip", emoji: "📎", family: "ip" },
+  { word: "chip", emoji: "🍟", family: "ip" },
+  { word: "trip", emoji: "✈️", family: "ip" },
+
+  { word: "kit", emoji: "🧰", family: "it" },
+  { word: "sit", emoji: "🪑", family: "it" },
+  { word: "knit", emoji: "🧶", family: "it" },
+  { word: "fit", emoji: "💪", family: "it" },
+  { word: "hit", emoji: "👊", family: "it" },
+
+  { word: "pop", emoji: "🍿", family: "op" },
+  { word: "stop", emoji: "🛑", family: "op" },
+  { word: "shop", emoji: "🛍️", family: "op" },
+  { word: "hop", emoji: "🐇", family: "op" },
+  { word: "top", emoji: "🔝", family: "op" },
+  { word: "chop", emoji: "🔪", family: "op" },
+
+  { word: "store", emoji: "🏪", family: "ore" },
+  { word: "shore", emoji: "🏖️", family: "ore" },
+  { word: "score", emoji: "🥅", family: "ore" },
+  { word: "chore", emoji: "🧹", family: "ore" },
+  { word: "snore", emoji: "😪", family: "ore" },
+
+  { word: "jump", emoji: "🤸", family: "ump" },
+  { word: "pump", emoji: "⛽", family: "ump" },
+  { word: "hump", emoji: "🐫", family: "ump" },
+  { word: "plump", emoji: "🐷", family: "ump" },
+  { word: "grump", emoji: "😠", family: "ump" },
+
+  { word: "skunk", emoji: "🦨", family: "unk" },
+  { word: "trunk", emoji: "🐘", family: "unk" },
+  { word: "bunk", emoji: "🛏️", family: "unk" },
+  { word: "chunk", emoji: "🧀", family: "unk" },
+
+  { word: "book", emoji: "📖", family: "ook" },
+  { word: "cook", emoji: "👨‍🍳", family: "ook" },
+  { word: "look", emoji: "👀", family: "ook" },
+  { word: "hook", emoji: "🪝", family: "ook" },
+  { word: "notebook", emoji: "📓", family: "ook" },
+
+  { word: "ball", emoji: "⚽", family: "all" },
+  { word: "wall", emoji: "🧱", family: "all" },
+  { word: "fall", emoji: "🍂", family: "all" },
+  { word: "small", emoji: "🤏", family: "all" },
+  { word: "tall", emoji: "📏", family: "all" }
+];
+
+const FAMILIES = [...new Set(WORDS.map((w) => w.family))];
+
+const BLENDS = [
+  "scr", "shr", "spl", "spr", "squ", "str", "thr",
+  "bl", "br", "cl", "cr", "dr", "dw", "fl", "fr", "gl", "gr",
+  "pl", "pr", "sc", "sk", "sl", "sm", "sn", "sp", "st", "sw", "tr", "tw"
+];
+
+function startsWithBlend(word) {
+  return BLENDS.some((b) => word.startsWith(b));
+}
+
+const DIGRAPHS = ["ch", "sh", "th", "wh", "ph"];
+
+function startsWithDigraph(word) {
+  return DIGRAPHS.some((d) => word.startsWith(d));
+}
+
+const LETTERS = "abcdefghijklmnopqrstuvwxyz".split("");
+
+let current = null;
+let slotLetters = [];   // letter placed in each slot, or null
+let bankState = [];     // { letter, used }
+let score = 0;
+let streak = 0;
+
+const emojiEl = document.getElementById("emoji");
+const slotsEl = document.getElementById("slots");
+const bankEl = document.getElementById("bank");
+const messageEl = document.getElementById("message");
+const scoreEl = document.getElementById("score");
+const streakEl = document.getElementById("streak");
+const nextBtn = document.getElementById("nextBtn");
+const resetBtn = document.getElementById("resetBtn");
+const hearBtn = document.getElementById("hearBtn");
+const difficultySel = document.getElementById("difficulty");
+const familySel = document.getElementById("family");
+const blendOnlyEl = document.getElementById("blendOnly");
+const noBlendEl = document.getElementById("noBlend");
+const digraphOnlyEl = document.getElementById("digraphOnly");
+const noDigraphEl = document.getElementById("noDigraph");
+
+familySel.innerHTML =
+  '<option value="__any__">All families</option>' +
+  FAMILIES.map((f) => `<option value="${f}">-${f} words</option>`).join("");
+
+function speak(text) {
+  if (!("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.rate = 0.8;
+  utter.pitch = 1.1;
+  window.speechSynthesis.speak(utter);
+}
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function applyFilter(pool, test) {
+  const filtered = pool.filter(test);
+  return filtered.length ? filtered : pool;
+}
+
+function currentPool() {
+  const family = familySel.value;
+  const familyPool = family === "__any__" ? WORDS : WORDS.filter((w) => w.family === family);
+  let pool = familyPool.length ? familyPool : WORDS;
+
+  if (blendOnlyEl.checked) {
+    pool = applyFilter(pool, (w) => startsWithBlend(w.word));
+  } else if (noBlendEl.checked) {
+    pool = applyFilter(pool, (w) => !startsWithBlend(w.word));
+  }
+
+  if (digraphOnlyEl.checked) {
+    pool = applyFilter(pool, (w) => startsWithDigraph(w.word));
+  } else if (noDigraphEl.checked) {
+    pool = applyFilter(pool, (w) => !startsWithDigraph(w.word));
+  }
+
+  return pool;
+}
+
+function pickWord() {
+  const pool = currentPool();
+  let choice;
+  do {
+    choice = pool[Math.floor(Math.random() * pool.length)];
+  } while (current && choice.word === current.word && pool.length > 1);
+  return choice;
+}
+
+function newRound() {
+  current = pickWord();
+  const letters = current.word.split("");
+  slotLetters = new Array(letters.length).fill(null);
+
+  let pool = letters.slice();
+  if (difficultySel.value === "hard") {
+    let extra;
+    do {
+      extra = LETTERS[Math.floor(Math.random() * LETTERS.length)];
+    } while (letters.includes(extra));
+    pool.push(extra);
+  }
+  pool = shuffle(pool);
+  bankState = pool.map((letter, i) => ({ id: i, letter, used: false }));
+
+  emojiEl.textContent = current.emoji;
+  messageEl.textContent = " ";
+  messageEl.className = "message";
+  slotsEl.classList.remove("shake", "correct");
+  nextBtn.classList.remove("show");
+
+  renderSlots();
+  renderBank();
+}
+
+function renderSlots() {
+  slotsEl.innerHTML = "";
+  slotLetters.forEach((letter, i) => {
+    const div = document.createElement("div");
+    div.className = "slot" + (letter ? " filled" : "");
+    div.textContent = letter ? letter.toUpperCase() : "";
+    div.addEventListener("click", () => clearSlot(i));
+    slotsEl.appendChild(div);
+  });
+}
+
+function renderBank() {
+  bankEl.innerHTML = "";
+  bankState.forEach((item) => {
+    const div = document.createElement("div");
+    div.className = "tile" + (item.used ? " used" : "");
+    div.textContent = item.letter.toUpperCase();
+    div.addEventListener("click", () => placeLetter(item));
+    bankEl.appendChild(div);
+  });
+}
+
+function placeLetter(item) {
+  if (item.used) return;
+  const emptyIndex = slotLetters.findIndex((l) => l === null);
+  if (emptyIndex === -1) return;
+  item.used = true;
+  slotLetters[emptyIndex] = item.letter;
+  renderSlots();
+  renderBank();
+
+  if (slotLetters.every((l) => l !== null)) {
+    checkAnswer();
+  }
+}
+
+function clearSlot(i) {
+  if (!slotLetters[i]) return;
+  const letter = slotLetters[i];
+  const match = bankState.find((b) => b.letter === letter && b.used);
+  if (match) match.used = false;
+  slotLetters[i] = null;
+  renderSlots();
+  renderBank();
+}
+
+function clearAll() {
+  slotLetters = slotLetters.map(() => null);
+  bankState.forEach((b) => (b.used = false));
+  renderSlots();
+  renderBank();
+  messageEl.textContent = " ";
+  messageEl.className = "message";
+  slotsEl.classList.remove("shake", "correct");
+}
+
+function checkAnswer() {
+  const guess = slotLetters.join("");
+  if (guess === current.word) {
+    score += 10;
+    streak += 1;
+    scoreEl.textContent = score;
+    streakEl.textContent = streak;
+    messageEl.textContent = "Yes! That's " + current.word.toUpperCase() + "!";
+    messageEl.className = "message good";
+    slotsEl.classList.add("correct");
+    emojiEl.classList.add("bump");
+    setTimeout(() => emojiEl.classList.remove("bump"), 300);
+    speak(current.word);
+    nextBtn.classList.add("show");
+  } else {
+    streak = 0;
+    streakEl.textContent = streak;
+    messageEl.textContent = "Not quite, try again!";
+    messageEl.className = "message bad";
+    slotsEl.classList.add("shake");
+    setTimeout(() => {
+      slotsEl.classList.remove("shake");
+      clearAll();
+    }, 500);
+  }
+}
+
+hearBtn.addEventListener("click", () => current && speak(current.word));
+resetBtn.addEventListener("click", clearAll);
+nextBtn.addEventListener("click", newRound);
+difficultySel.addEventListener("change", newRound);
+familySel.addEventListener("change", newRound);
+blendOnlyEl.addEventListener("change", () => {
+  if (blendOnlyEl.checked) noBlendEl.checked = false;
+  newRound();
+});
+noBlendEl.addEventListener("change", () => {
+  if (noBlendEl.checked) blendOnlyEl.checked = false;
+  newRound();
+});
+digraphOnlyEl.addEventListener("change", () => {
+  if (digraphOnlyEl.checked) noDigraphEl.checked = false;
+  newRound();
+});
+noDigraphEl.addEventListener("change", () => {
+  if (noDigraphEl.checked) digraphOnlyEl.checked = false;
+  newRound();
+});
+
+newRound();
+</script>
+</body>
+</html>
